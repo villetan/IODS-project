@@ -1,7 +1,10 @@
 
 # About the project
 
-*Write a short description about the course and add a link to your GitHub repository here. This is an R Markdown (.Rmd) file so you should use R Markdown syntax.*
+<*Write a short description about the course and add a link to your GitHub repository here. This is an R Markdown (.Rmd) file so you should use R Markdown syntax.*>
+This is a course diary for the UH course <em> Introduction to Open Data Science</em>. I was introduced to this course by our PhD-program's advisor and it will be included as a course in my <em>transferrable studies</em> quota (10 credits).
+
+The link for this diary is: https://villetan.github.io/IODS-project/
 
 ```{r}
 # This is a so-called "R chunk" where you can write R code.
@@ -9,5 +12,6 @@
 date()
 
 ```
+
 The text continues here.
 
