@@ -7,7 +7,66 @@
 - Assume the reader has no previous knowledge of your data or the more advanced methods you are using.
 
 ```{r}
+setwd("~/Koulu/IODS-project")
 date()
 ```
 
-Here we go again...
+Lets read the data in from local file...
+
+```{r}
+data = read.csv("data/wk2data.csv")
+```
+
+... and see the summary of it.
+```{r}
+summary(data)
+```
+Let's also plot a graphical summary.
+```{r}
+library(GGally)
+library(ggplot2)
+p <- ggpairs(data, mapping = aes(), lower = list(combo = wrap("facethist", bins = 20)))
+p
+```
+
+First, lets look at the distributions of the variables individually. There are more females present in the data set. The ages of the subjects are right skewed, so that people in their 20's are more prevalent. Points have a small spike in presence of low points, but other than that it is near Gaussian in the region above 15 points. Other variables seem to be balanced rather well over their domain.
+
+To name few interesting or meaningful pairwise relationships, the correlation between deep and surf variables is the highest. Without knowing too much about them, they sound likethey should indeed have negative correlation: High deep approach to the course, would mean low surface approach to the course. Another clear correlation is between Attitude and Points: good attitude correlates with good score from the course. We should be careful of commenting on causal relationship, but for the layman this would suggest that good attitudes yield good scores.
+
+Next, lets fit a regression model with three variables and print the summary.
+```{r}
+lm_fit = lm("Points ~ Attitude + deep + stra", data = data)
+summary(lm_fit)
+```
+It seems that the attitude is the only statistically significant feature explaining good (or bad) points in the course. What this means in laymen terms is that the coefficients for the deep and stra might as well have been 0 and thus they would have not contributed to the score itself.
+
+Lets remove stra and deep since they are non-significant, we'll also keep the Intercept therm as it showed significance as well.
+```{r}
+lm_fit_ = lm("Points ~ Attitude", data = data)
+summary(lm_fit_)
+```
+Now, they both are significant with p-values effectively zero. This means that we can be pretty certain that the coefficient estimates are not zeros.
+
+The relationship between Attitude and Points is clear positive trend as seen on the plot below. There the regression line found is plotted with black solid line.
+```{r}
+plot(data$Attitude, data$Points, xlab = "Attitide", ylab="Points")
+abline(a=lm_fit_$coefficients["(Intercept)"], b=lm_fit_$coefficients["Attitude"])
+```
+
+The multiple R-squared is the proportion of variance explained by the linear model. So the linear model explains about 20% of the variance in the response variable, that is, points. The rest of the 80% of the variance seem to be inherent to the data.
+
+Lets plot Residuals vs. fitted values, normal QQ-plot and residual vs. leverage.
+```{r}
+par(mfrow=c(2,2))
+plot(lm_fit_, which = c(1,2,5))
+```
+
+The interpretation of "Residuals vs. fitted" is that one can see where the linear model makes mistakes. For example if there is non-linearity, then it is expected to be visible in this plot. The closer to the zero line the residuals are, the better the model. A perfect model would have a straight line at 0. In our model there is no pattern of nonlinearity as the points are uniformly distributed across different locations of x-axis.
+
+The second plot, the QQ-plot, estimates if the errors of the model are really normally distributed, which is an assumption of the linear model. Since the QQ-plot is not completely straight, there are slight evidence, that the residuals are not Normal, but rather left skewed. See the plot below. However, the skew is very minor.
+
+The third plot, Residuals vs. leverage, studies if a single (or a group) data point is responsible for the "fit" more than the others. It seems that no single data point is affecting the fit significantly more than others.
+
+```{r}
+hist(lm_fit_$residuals, main="Residuals")
+```
