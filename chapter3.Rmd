@@ -1,0 +1,77 @@
+# Logistic Regression
+  
+Lets read the data we generated using create_alc.R script and see that it looks ok.
+```{r}
+alc_data = read.csv("data/alc_data.csv")
+print(dim(alc_data))
+str(alc_data)
+```
+
+Let us select 4 interesting variables to seek the relationship with the alcohol consumption.
+
+```{r}
+interesting_cols = c("freetime", "romantic", "address", "famrel")
+```
+The hypothesis is that these variables correlate with alieness to the society, which in turn, I speculate, affects the alcohol consumption. I speculate that freetime and ruralness correlate with alcohol consumption positively, while being in a romantic relationship and having good family relations correlate negatively.
+
+```{r}
+library(ggplot2)
+library(GGally)
+cor_data = alc_data[, c("alc_use", interesting_cols)]
+#cast as factors so that they are visualised correctly
+cor_data$freetime = as.factor(cor_data$freetime)
+cor_data$romantic = as.factor(cor_data$romantic)
+cor_data$address = as.factor(cor_data$address)
+cor_data$famrel = as.factor(cor_data$famrel)
+ggpairs(cor_data)
+```
+
+I have non-significant support for the hypotheses made above for all but "romantic" relationship. So it seems that relationship status has absolutely no correlation with the alcohol consumption.
+
+
+Lets study the problem with logistic regression model.
+```{r}
+cor_data$freetime = as.numeric(cor_data$freetime)
+cor_data$famrel = as.numeric(cor_data$famrel)
+glm_data = cbind("high_use"=alc_data$high_use, cor_data[,interesting_cols])
+logreg_fit = glm(high_use ~ ., data = glm_data, family="binomial")
+```
+
+For the continuous (ordinal features, that is, freetime and famrel) we can exponentiate, to get the odds ratios:
+
+```{r}
+exp(logreg_fit$coefficients[c("freetime", "famrel")])
+```
+So free time, being having a unit more of free time, increases the chances of high use of alcohol 1.5 times higher. On the other hand, having a unit increase in family relations, that is having better family relationships, makes decreases the chances of high use of alcohol by 1.45 times (because 0.69, which is 1 / 1.45).
+
+The same happens with the discrete features, but we need to be careful with the interpretation of unit addition.
+```{r}
+exp(logreg_fit$coefficients[c("romanticyes", "addressU")])
+```
+Here it seems that romantic relation and address in urban area seem to have negative effect on the high use of alcohol, just like predicted.
+
+The confidence intervals can be fetched with the following command
+```{r}
+exp(confint(logreg_fit))
+```
+So, the only confidence intervals not covering the "no effect" value of 1 are freetime and famrel, meaning that they provide more statistical evidence that indeed more freetime is associated with higher use and better family relationships are related with not high use.
+
+Lets create the 2x2 cross-tabulation, also known as confusion matrix,
+```{r}
+cmat = table(high_use = glm_data$high_use, prediction = (predict(logreg_fit, newdata=glm_data, type="response") > 0.5))
+print(cmat)
+```
+and compute the training error:
+```{r}
+#training error:
+sum(c(cmat[1,2], cmat[2,1])) / sum(cmat)
+```
+```{r}
+#random guessing:
+print(mean(glm_data$high_use))
+```
+The model misclassifices 31% of the training cases. So the interpretation is that on average 3 out of 10 samples is misclassified. With random guessing one gets, on average, as low errors as predicting the majority class. That is, the random guessing is actually better, because it gets an error as low as 30%. So this means that the model fit to the data is actually very poor, and the interpretation should not be trusted.
+
+
+
+
