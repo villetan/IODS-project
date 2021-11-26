@@ -1,0 +1,184 @@
+# Clustering and Classification
+
+Let us look at the Boston dataset from MASS package
+```{r}
+library(MASS)
+data = Boston
+str(data)
+```
+
+Boston dataset is about housing values in suburbs of Boston. It includes `r dim(data)[2]` features defining variables that might or might not be relevant for the median value of the houses in that area. The features are:
+
+* crim
+  + per capita crime rate by town.
+
+* zn
+  + proportion of residential land zoned for lots over 25,000 sq.ft.
+
+* indus
+  + proportion of non-retail business acres per town.
+
+* chas
+  + Charles River dummy variable (= 1 if tract bounds river; 0 otherwise).
+
+* nox
+  + nitrogen oxides concentration (parts per 10 million).
+
+* rm
+  + average number of rooms per dwelling.
+
+* age
+  + proportion of owner-occupied units built prior to 1940.
+
+* dis
+  + weighted mean of distances to five Boston employment centres.
+
+* rad
+  + index of accessibility to radial highways.
+
+* tax
+  + full-value property-tax rate per \$10,000.
+
+* ptratio
+  + pupil-teacher ratio by town.
+
+* black
+  + 1000(Bk - 0.63)^2 where Bk is the proportion of blacks by town.
+
+* lstat
+  + lower status of the population (percent).
+
+* medv
+  + median value of owner-occupied homes in \$1000s.
+
+Lets grpahically look at the data and summarize the data
+
+```{r, fig.width=16, fig.height=10}
+library(ggplot2)
+library(GGally)
+#lets cast the integers to factors
+data$chas = as.factor(data$chas)
+ggpairs(data = data, aes(colour = chas, alpha = 0.4))
+```
+
+There are some interesting findings in the graphical overview. Firstly the distribution between chas variable is really unbalanced, which is expected as there can only be so many houses near the river and more further away. Some nonlinear clear relationships are present for example between medv-lstat and nox-dis. Also number of rooms have the anticipated positive correlation with the median value of the house.
+
+Lets print the summary
+```{r}
+summary(data)
+```
+
+Unlike the datacamp says, there is a factor variable in the data, lets not normalize that. Lets normalize the others (although I am not sure if it should be done for proportions)
+```{r}
+sdata = scale(data[,colnames(data) != "chas"])
+sdata = as.data.frame(sdata)
+sdata[,"chas"] = data$chas
+summary(sdata)
+```
+
+We can see that the means are all 0 and the sds are ones as well (below).
+```{r}
+apply(sdata, 2, sd)
+#also save kmeand dataset that is scaled
+kdata = sdata
+```
+
+Lets create a categorical variable out of crime rate
+
+```{r}
+bins <- quantile(sdata$crim)
+crime <- cut(sdata$crim, breaks = bins, include.lowest = TRUE)
+#replace the earlier crime feature with the binned one
+sdata$crim = crime
+```
+
+Lets shuffle the data set and split it into training and testing
+```{r}
+N_train = floor(0.8 * nrow(sdata))
+train_inds = sample(nrow(sdata), N_train)
+train = sdata[train_inds,]
+test = sdata[-train_inds, ]
+```
+
+Lets fit the LDA to the data using crim (binned) as the target variable
+```{r}
+lda.fit <- lda(crim ~ ., data = train)
+
+# print the lda.fit object
+lda.fit
+
+# the function for lda biplot arrows
+lda.arrows <- function(x, myscale = 1, arrow_heads = 0.1, color = "red", tex = 0.75, choices = c(1,2)){
+  heads <- coef(x)
+  arrows(x0 = 0, y0 = 0, 
+         x1 = myscale * heads[,choices[1]], 
+         y1 = myscale * heads[,choices[2]], col=color, length = arrow_heads)
+  text(myscale * heads[,choices], labels = row.names(heads), 
+       cex = tex, col=color, pos=3)
+}
+
+# target classes as numeric
+classes <- as.numeric(train$crime)
+
+# plot the lda results
+plot(lda.fit, dimen = 2)
+lda.arrows(lda.fit, myscale = 1)
+
+```
+
+
+Lets then save the crime categories for the test set and remove them from test set to avoid information leakage.
+
+```{r}
+test_resp = test$crim
+test$crim = NULL
+```
+
+And then predict the values for the test set and plot the confusion matrix
+```{r}
+test_preds = predict(lda.fit, newdata = test)
+table(correct = test_resp, preds = test_preds$class)
+```
+
+The corss tabulation shows good pattern of highest values on the diagonal (meaning correct class) and least amount far away in the quantiles. In the middle classes there are some confusion with the nearby classes, which is better than misclassifying them "hardly". Notice, however, that not every classification task possess this quantity of the classes being "close" to one another.
+
+Lets then move on to the clustering part of the analysis, we use kdata as it is already a scaled data set and it was saved earlier. Lets begin by calculating the distances
+
+```{r}
+summary(dist(kdata))
+```
+
+```{r}
+summary(dist(kdata, method = "manhattan"))
+```
+Now we can cluster the data and plot the pairs with clusters as the colors. Lets define a function so it is easy to experiment with different number of clusters (and start by clustering to 4)
+```{r, fig.width=16, fig.height=10}
+fit_and_plot_cluster = function(n_clusters){
+  colors = c("red", "blue", "purple", "black", "orange")#max number of clusters is 5
+  kfit = kmeans(kdata, centers = n_clusters)
+  color_vec = kfit$cluster
+  for(ii in 1:n_clusters){
+    color_vec[color_vec == ii] = colors[ii]
+  }
+  pairs(kdata, col = color_vec)
+  return(kfit)
+}
+fit_and_plot_cluster(4)
+```
+
+Cluster separation seems to be decent, so that in every plot the different colors somewhat focus on different regions of the plot. However there are still some overlaps, so lets try to find the optimal number of clusters
+
+```{r}
+set.seed(42)
+k_max = 15
+twcss <- sapply(1:k_max, function(k){kmeans(kdata, k)$tot.withinss})
+qplot(x = 1:k_max, y = twcss, geom = 'line')
+```
+
+So it seems that the most radical drop is at 5 clusters, so lets go with that
+```{r, fig.width=20, fig.height=15}
+fit_and_plot_cluster(5)
+```
+
+Some of the variables are very well separated in the clusters, i.e., nox vs age/dis/rad, where e.g. the purple cluster is such that the nox, rad and age are high and dis is low. Similar differences can be recognized in other clusters as well.
+
