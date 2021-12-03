@@ -1,0 +1,65 @@
+# Dimensionality reduction
+
+Lets read the csv from the file, as there might be a mistake in the data preparation.
+```{r}
+data = read.csv("http://s3.amazonaws.com/assets.datacamp.com/production/course_2218/datasets/human2.txt")
+dim(data)
+```
+
+Lets plot the data
+```{r, fig.width=14, fig.height=6}
+library(GGally)
+library(ggplot2)
+ggpairs(data)
+```
+
+Some of the distributions are really skewed towards the low values. Like GNI and Mat.Mor and Ado.Birth. Life.Exp is skewed towards the right side, meaning that most of the countries have decently high life expetation. There are also some clear trends in the data like Life.Exp and Mat.Mor, which is logical: lower life expectancy also correlates with mother mortality. 
+
+Lets then move on to computing the PCA. First on non-standardized data set.
+```{r, fig.width=14, fig.height=7}
+pcafit = prcomp(data)
+biplot(pcafit)
+```
+The plot shows that GNI has vastly greater magnitude than other variables.
+
+Lets then normalize the data and repeat
+
+```{r, fig.width=14, fig.height=7}
+data_norm = scale(data)
+pcafit = prcomp(data_norm)
+biplot(pcafit)
+```
+
+The results are different, and the reason for this is that the PCA finds the axis of maximal variance in the data. If the scale of one variable is large, then of course the variance will be large as well, and thus that direction has the maximal variance. When the data set is normalized, then there is no discrepancy between the scales of the variables, and the PCA finds actually meaningful directions of principal component. The names describe the values of countries in PC1 and PC2 and the red texts desribe the values of the principal component coefficients along corresponding PC (PC1 and PC2). For example the coefficient for Edu.Exp is approx. 0.12 for PC1 and 0.04 for PC2. It means that for example Netherlands have high value for Edu.Exp. Another example is in Rwanda Labo.FM is high, and in Jordan and Yemen this is low. However both of these are similar in the Edu.Exp, Life.exp and Mat.mor axis.
+
+In the countries most of the variation is from the Edu.exp, Edu.Pm, GNI, Life.exp vs. Mat.mor and Ado.Birth. Then the second highest variation (second component) combines the Parli.F and Labo.FM.
+
+Then next we look at the tea data set.
+
+```{r}
+#install.packages("FactoMineR")
+library(FactoMineR)
+data(tea)
+dim(tea)
+```
+
+```{r}
+str(tea)
+```
+
+```{r}
+library(dplyr)
+library(tidyr)
+keep_columns <- c("Tea", "How", "how", "sugar", "where", "lunch")
+tea_time <- select(tea, keep_columns)
+gather(tea_time) %>% ggplot(aes(value)) + facet_wrap("key", scales = "free") + geom_bar() + theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8))
+```
+
+Then time for MCA. 
+```{r, fig.width=14, fig.height=9}
+mcafit = MCA(tea_time, graph=FALSE)
+plot(mcafit)
+```
+
+MCA is the PCA equivalent for factored data. Because it is not really meaningful to calculate variance of a factor (at least in the standard way, we need to do some special treatment, that is, MCA). It means that most of the variation in the data set comes from the unpacked and tea shop dimensions of the where and how features. Similarly for other variables and the second dimension the other and green of Tea and How explain the other second dimension's variability.
+

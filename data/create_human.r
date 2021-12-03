@@ -59,3 +59,43 @@ write.csv(human, "human.csv", row.names = FALSE)
 
 #test load
 all.equal(human, read.csv("human.csv")) #TRUE
+
+#lets load the data so that we have the naming convention simlarly to everyone elses. Description of the data can be found above
+data = read.csv("http://s3.amazonaws.com/assets.datacamp.com/production/course_2218/datasets/human1.txt",  sep = ",")
+dim(data) # => 195 x 19 
+head(data)
+# HDI.Rank     Country   HDI Life.Exp Edu.Exp Edu.Mean    GNI GNI.Minus.Rank GII.Rank   GII Mat.Mor Ado.Birth Parli.F Edu2.F Edu2.M Labo.F Labo.M   Edu2.FM   Labo.FM
+#        1      Norway 0.944     81.6    17.5     12.6 64,992              5        1 0.067       4       7.8    39.6   97.4   96.7   61.2   68.7 1.0072389 0.8908297
+#        2   Australia 0.935     82.4    20.2     13.0 42,261             17        2 0.110       6      12.1    30.5   94.3   94.6   58.8   71.8 0.9968288 0.8189415
+#        3 Switzerland 0.930     83.0    15.8     12.8 56,431              6        3 0.028       6       1.9    28.5   95.0   96.6   61.8   74.9 0.9834369 0.8251001
+#        4     Denmark 0.923     80.2    18.7     12.7 44,025             11        4 0.048       5       5.1    38.0   95.5   96.6   58.7   66.4 0.9886128 0.8840361
+#        5 Netherlands 0.922     81.6    17.9     11.9 45,435              9        5 0.062       6       6.2    36.9   87.7   90.5   58.5   70.6 0.9690608 0.8286119
+#        6     Germany 0.916     80.9    16.5     13.1 43,919             11        6 0.041       7       3.8    36.9   96.3   97.0   53.6   66.4 0.9927835 0.8072289
+
+# 1)
+data$GNI = as.numeric(gsub(",", "", data$GNI))
+
+# 2)
+keep_cols = c("Country", "Edu2.FM", "Labo.FM", "Edu.Exp", "Life.Exp", "GNI", "Mat.Mor", "Ado.Birth", "Parli.F")
+data = data[ ,keep_cols]
+
+# 3)
+data = data[complete.cases(data),]
+
+#4)
+data$Country
+data = data[1:(nrow(data)-7),]
+#remove the last 7
+#5)
+rownames(data) = data$Country
+data$Country = NULL
+head(data)
+# =>
+#             Edu2.FM   Labo.FM Edu.Exp Life.Exp   GNI Mat.Mor Ado.Birth Parli.F
+# Norway      1.0072389 0.8908297    17.5     81.6 64992       4       7.8    39.6
+# Australia   0.9968288 0.8189415    20.2     82.4 42261       6      12.1    30.5
+# Switzerland 0.9834369 0.8251001    15.8     83.0 56431       6       1.9    28.5
+# Denmark     0.9886128 0.8840361    18.7     80.2 44025       5       5.1    38.0
+# Netherlands 0.9690608 0.8286119    17.9     81.6 45435       6       6.2    36.9
+# Germany     0.9927835 0.8072289    16.5     80.9 43919       7       3.8    36.9
+write.csv(data, "data/human.csv", row.names = TRUE)
