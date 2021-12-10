@@ -1,0 +1,159 @@
+# Longitudinal data
+
+Let us read the data
+
+```{r}
+bprs = read.csv("data/bprs.csv")
+rats = read.csv("data/rats.csv")
+head(rats)
+head(bprs)
+```
+
+Let us first repeat the analysis of the Vehkalahti's book chapter 8 with rats data.
+Start with categorical transform.
+```{r}
+rats$ID = as.factor(rats$ID)
+rats$Group = as.factor(rats$Group)
+```
+
+Then, the visualization of the data
+```{r}
+library(dplyr)
+library(ggplot2)
+
+ggplot(rats, aes(x = WD, y = measurement, linetype = ID)) +
+  geom_line() +
+  scale_linetype_manual(values = rep(1:10, times=4)) +
+  facet_grid(. ~ Group, labeller = label_both) +
+  theme(legend.position = "none") + 
+  scale_y_continuous(limits = c(min(rats$measurement), max(rats$measurement)))
+```
+
+Lets standardize the values and replot
+```{r}
+library(tidyr)
+rats <- rats %>%
+  group_by(WD) %>%
+  mutate(stdm = (measurement - mean(measurement)) / sd(measurement) ) %>%
+  ungroup()
+
+ggplot(rats, aes(x = WD, y = stdm, linetype = ID)) +
+  geom_line() +
+  scale_linetype_manual(values = rep(1:10, times=4)) +
+  facet_grid(. ~ Group, labeller = label_both) +
+  theme(legend.position = "none") + 
+  scale_y_continuous(name = "standardized measurement")
+
+```
+
+Then time for summary graphs
+
+```{r}
+n = 20
+
+ratss <- rats %>%
+  group_by(Group, WD) %>%
+  summarise( mean = mean(measurement), se = sd(measurement)/sqrt(n) ) %>%
+  ungroup()
+
+ggplot(ratss, aes(x = WD, y = mean, linetype = Group, shape = Group)) +
+  geom_line() +
+  scale_linetype_manual(values = c(1,2,3)) +
+  geom_point(size=3) +
+  scale_shape_manual(values = c(1,2,3)) +
+  geom_errorbar(aes(ymin=mean-se, ymax=mean+se, linetype="1"), width=0.3) +
+  theme(legend.position = c(0.8,0.8)) +
+  scale_y_continuous(name = "mean(measurement) +/- se(measurement)")
+
+```
+
+The outlier detection:
+```{r}
+# Create a summary data by treatment and subject with mean as the summary variable (ignoring baseline week 0).
+rats8<- rats %>%
+  filter(WD > 1) %>%
+  group_by(Group, ID) %>%
+  summarise( mean=mean(measurement) ) %>%
+  ungroup()
+
+ggplot(rats8, aes(x = Group, y = mean)) +
+  geom_boxplot() +
+  stat_summary(fun.y = "mean", geom = "point", shape=23, size=4, fill = "white") +
+  scale_y_continuous(name = "mean(measurement), WD > 1")
+
+```
+
+No need for outlier detection as we can clearly see that the groups are already very different. Based on the last plot one could say that the groups are different. However they are different from the first WD already, so it seems that the rats in different groups were different already from the day 1. Since the measurement is about the nutritions effect on the weight, I would say the the groups were pretty different to begin with. They also seem to be growing with the approximately same phase, so from graphical point of view one could speculate that the diet has no effect on the weight of the rat. We do not do the formal analysis as it was not done in the chapter 8 either.
+
+
+Then lets analyze the brps dataset according to the Chapter 9. We start by casting the categorical variables as factors and plot the data.
+```{r, fig.height=10, fig.width=10}
+bprs$subject = as.factor(bprs$subject)
+bprs$treatment = as.factor(bprs$treatment)
+ggplot(bprs, aes(x = weeks, y = bprs, group = subject, color=subject)) +
+  geom_line()
+```
+
+Then lets fit a linear model and ignore repeated measures.
+
+```{r}
+naive_fit = lm(bprs ~ weeks + treatment, data = bprs)
+summary(naive_fit)
+```
+
+Based on the linear model it seems that treatment has no effect on the outcome measurement, but the time sure has effect. Lets continue the analysis further to not so naive models.
+
+```{r}
+library(lme4)
+lmer_fit <- lmer(bprs ~ weeks + treatment + (1 | subject), data = bprs, REML = FALSE)
+summary(lmer_fit)
+```
+
+Random effects are not so high, meaning that subjects are pretty similar in the sense that they would not necessarily require their own intercepts. The fixed effects show that the subject have decreasing trend on time (negative coefficient for weeks) and that treatment 2 is adds about 0.57 units for the bprs measurement (which is very little considering the scale).
+
+Next we fit a model with subject specific coefficients for the time.
+```{r}
+lmer_fit2 <- lmer(bprs ~ weeks + treatment + (weeks | subject), data = bprs, REML = FALSE)
+summary(lmer_fit2)
+```
+We can see that the variance on random effects grew, meaning that once we allow subject specific coefficient on the time, we have more variance on the intercept term as well. This means that subjects have slightly different coefficients for time and this causes the intercepts to vary more.
+
+Lets test if we need the random effects on weeks with anova
+```{r}
+anova(lmer_fit2, lmer_fit)
+```
+It seems that we have a better fit with random effects on weeks.
+
+Finally lets fit an interaction model
+```{r}
+# dplyr, tidyr, lme4, ggplot2, RATS and RATSL are available
+
+# create a random intercept and random slope model with the interaction
+lmer_fit3 <- lmer(bprs ~ weeks * treatment + (weeks | subject), data = bprs, REML = FALSE)
+print(summary(lmer_fit3))
+
+# perform an ANOVA test on the two last
+print(anova(lmer_fit3, lmer_fit2))
+
+ggplot(bprs, aes(x = weeks, y = bprs, group = subject)) +
+  geom_line(aes(color = treatment)) +
+  scale_x_continuous(name = "week", breaks = seq(0, 8)) +
+  scale_y_continuous(name = "bprs score") +
+  theme(legend.position = "top")
+
+Fitted <- fitted(lmer_fit3)
+
+# Create a new column fitted to RATSL
+bprs$fitted = Fitted
+# draw the plot of RATSL with the Fitted values of weight
+ggplot(bprs, aes(x = weeks, y = fitted, group = subject)) +
+  geom_line(aes(color = treatment)) +
+  scale_x_continuous(name = "Time (days)", breaks = seq(0, 60, 20)) +
+  scale_y_continuous(name = "Fitted weight (grams)") +
+  theme(legend.position = "top")
+```
+
+We can see a good linear fits for each subject so that the coefficients and intercepts change individually. There seems to be less variability in treatment 1's coefficients.
+
+
+
